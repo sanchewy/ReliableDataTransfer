@@ -91,9 +91,19 @@ class RDT:
             
     
     def rdt_2_1_send(self, msg_S):
+        #create packet with length, sequence number, checksum, and message
+        #wait to receive ACK
+            #if ACK is not for the sequence number that was just sent, retransmit the packet.
+            #if ACK for same sequence number as was just transmitted, increment self.sequence_number and end send.
         pass
         
     def rdt_2_1_receive(self):
+        #calculate checksum
+            #if corrupted, send ACK for sequence number -1 and wait to receive retransmission.
+            #else continue
+        #check sequence number
+            #if sequence number is expected sequence number, extract data and deliver.
+            #else send ACK for sequence number -1 and wait to receive retransmission.
         pass
     
     def rdt_3_0_send(self, msg_S):
