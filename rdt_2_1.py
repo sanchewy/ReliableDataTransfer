@@ -2,7 +2,7 @@ import Network
 import argparse
 from time import sleep
 import hashlib
-
+import sys
 
 class Packet:
     ## the number of bytes used to store packet length
@@ -92,8 +92,8 @@ class RDT:
 
     def rdt_2_1_send(self, msg_S):
         #create packet with length, sequence number, checksum, and message
-        p = Packet(self.sequence_num, msg_S)
-        self.network.udt_send(p.get_byte_S)
+        p = Packet(self.seq_num, msg_S)
+        self.network.udt_send(p.get_byte_S())
         while True:
             response = None
             response = self.rdt_2_1_receive()      #this should be a byte buffer. if not everything will break.
@@ -102,7 +102,7 @@ class RDT:
                 length = int(response[:Packet.length_S_length])
                 if (Packet.corrupt(response[:length])): #if corrupt packet
                     response = response[length:]    #reset response buffer
-                    self.network.udt_send(p.get_byte_S)     #resend the current packet
+                    self.network.udt_send(p.get_byte_S())     #resend the current packet
                 else:
                     resp_pkt = Packet.from_byte_S(response[0:length])   #if
                     if (resp_pkt.seq_num == self.seq_num):
@@ -110,7 +110,7 @@ class RDT:
                         return
                     else:
                         response = response[length:]
-                        self.network.udt_send(p.get_byte_S)
+                        self.network.udt_send(p.get_byte_S())
 
 
         #wait to receive ACK
@@ -122,9 +122,9 @@ class RDT:
         ret_S = None
         byte_S = self.network.udt_receive()
         self.byte_buffer += byte_S
-
         while True:
-            if len(self.byte_buffer) < Packet.length_S_length():
+            sys.stdout.write("DERPNUT\n")
+            if (len(self.byte_buffer) < Packet.length_S_length):
                 return ret_S
             length = int(self.byte_buffer[:Packet.length_S_length])
             if len(self.byte_buffer) < length:
@@ -136,12 +136,12 @@ class RDT:
             else:
                 p = Packet.from_byte_S(self.byte_buffer[0:length])
                 if p.seq_num == self.seq_num:
-                    ret_S = currentPacket.msg_S if (ret_S is None) else ret_S + p.msg_S
-                self.seq_num += 1
-            self.byte_buffer = self.byte_buffer[length:]
-            ack = Packet(p.seq_num 'ACK')
-            self.network.udt_send(ack.get_byte_S())
-    
+                    ret_S = p.msg_S if (ret_S is None) else ret_S + p.msg_S
+                    self.seq_num += 1
+                self.byte_buffer = self.byte_buffer[length:]
+                ack = Packet(p.seq_num, 'ACK')
+                self.network.udt_send(ack.get_byte_S())
+
     def rdt_3_0_send(self, msg_S):
         pass
 
@@ -169,11 +169,3 @@ if __name__ == '__main__':
         print(rdt.rdt_1_0_receive())
         rdt.rdt_1_0_send('MSG_FROM_SERVER')
         rdt.disconnect()
-<<<<<<< 75aecee2942e487edf6581ca6ce666fd9e2183d9
-=======
-        
-
-
-        
-        
->>>>>>> added 2.1 recieve
