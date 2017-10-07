@@ -119,14 +119,29 @@ class RDT:
         pass
 
     def rdt_2_1_receive(self):
-        #calculate checksum
-            #if corrupted, send ACK for sequence number -1 and wait to receive retransmission.
-            #else continue
-        #check sequence number
-            #if sequence number is expected sequence number, extract data and deliver.
-            #else send ACK for sequence number -1 and wait to receive retransmission.
-        pass
+        ret_S = None
+        byte_S = self.network.udt_receive()
+        self.byte_buffer += byte_S
 
+        while True:
+            if len(self.byte_buffer) < Packet.length_S_length():
+                return ret_S
+            length = int(self.byte_buffer[:Packet.length_S_length])
+            if len(self.byte_buffer) < length:
+                return ret_S
+            if(Packet.corrupt(self.byte_buffer[0:length])):
+                nack = Packet(self.seq_num, 'NACK')
+                self.network.udt_send(nack.get_byte_S())
+                self.byte_buffer = self.byte_buffer[length:]
+            else:
+                p = Packet.from_byte_S(self.byte_buffer[0:length])
+                if p.seq_num == self.seq_num:
+                    ret_S = currentPacket.msg_S if (ret_S is None) else ret_S + p.msg_S
+                self.seq_num += 1
+            self.byte_buffer = self.byte_buffer[length:]
+            ack = Packet(p.seq_num 'ACK')
+            self.network.udt_send(ack.get_byte_S())
+    
     def rdt_3_0_send(self, msg_S):
         pass
 
@@ -154,3 +169,11 @@ if __name__ == '__main__':
         print(rdt.rdt_1_0_receive())
         rdt.rdt_1_0_send('MSG_FROM_SERVER')
         rdt.disconnect()
+<<<<<<< 75aecee2942e487edf6581ca6ce666fd9e2183d9
+=======
+        
+
+
+        
+        
+>>>>>>> added 2.1 recieve
