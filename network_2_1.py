@@ -3,7 +3,7 @@ import socket
 import threading
 from time import sleep
 import random
-import RDT
+import rdt_2_1
 
 
 
@@ -62,7 +62,7 @@ class NetworkLayer:
             return
         #corrupt a packet
         if random.random() < self.prob_byte_corr:
-            start = random.randint(RDT.Packet.length_S_length,len(msg_S)-5)
+            start = random.randint(rdt_2_1.Packet.length_S_length,len(msg_S)-5)
             num = random.randint(1,5)
             repl_S = ''.join(random.sample('XXXXX', num)) #sample length >= num
             msg_S = msg_S[:start]+repl_S+msg_S[start+num:]
