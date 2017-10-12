@@ -65,12 +65,6 @@ class RDT:
     def disconnect(self):
         self.network.disconnect()
 
-    def flip_seq_num(self):
-        if(self.seq_num == 1):
-            self.seq_num = 0
-        else:
-            self.seq_num =1
-
     def rdt_3_0_send(self, msg_S):
         #create packet with length, sequence number, checksum, and message
         p = Packet(self.seq_num, msg_S)
@@ -79,43 +73,36 @@ class RDT:
         byte_S = self.network.udt_receive()
         self.byte_buffer += byte_S
         #keep extracting packets - if reordered, could get more than one
-        elapsed = 0
-        sent = False
         while True:
-            byte_S = self.network.udt_receive()
-            self.byte_buffer += byte_S
-            #check if we have received enough bytes
-            if(len(self.byte_buffer) >= Packet.length_S_length):
-                length = int(self.byte_buffer[:Packet.length_S_length])
-                #check if we have received the entire "length" of packet
-                if(len(self.byte_buffer) >= length):
-                    #check if packet was corrupted
-                    if(Packet.corrupt(self.byte_buffer[0:length])):
-                        self.byte_buffer = self.byte_buffer[length:]
-                        self.network.udt_send(p.get_byte_S())
-                        elapsed = 0
-                        sent = True
-                    else:
-                        #if not corrupted
-                        rec_pkt = Packet.from_byte_S(self.byte_buffer[0:length])
-                        self.byte_buffer = self.byte_buffer[length:]
-                        #check if received packet is an ack for the packet we just sent
-                        if(rec_pkt.msg_S == 'ACK' and rec_pkt.seq_num >= self.seq_num):
-                            self.seq_num = self.seq_num + 1
-                            return
+            time_holder = time.time() + .05
+            while(time.time() < time_holder):
+                byte_S = self.network.udt_receive()
+                self.byte_buffer += byte_S
+                #check if we have received enough bytes
+                if(len(self.byte_buffer) >= Packet.length_S_length):
+                    length = int(self.byte_buffer[:Packet.length_S_length])
+                    #check if we have received the entire "length" of packet
+                    if(len(self.byte_buffer) >= length):
+                        #check if packet was corrupted
+                        if(Packet.corrupt(self.byte_buffer[0:length])):
+                            self.byte_buffer = self.byte_buffer[length:]
+                            break
+                            # Do nothing wait for timeout
+                            # self.network.udt_send(p.get_byte_S())
                         else:
-                            self.network.udt_send(p.get_byte_S())
-                            elapsed = 0
-                            sent = True
-                else:
-                    elapsed += 1
-            elapsed += 1
-            if(elapsed >= 1000000 and sent==True):
-                self.byte_buffer = ''
-                self.network.udt_send(p.get_byte_S())
-                elapsed = 0
-                print("Yes")
-                sent = False
+                            #if not corrupted
+                            rec_pkt = Packet.from_byte_S(self.byte_buffer[0:length])
+                            self.byte_buffer = self.byte_buffer[length:]
+                            #check if received packet is an ack for the packet we just sent
+                            if(rec_pkt.msg_S == 'ACK' and rec_pkt.seq_num >= self.seq_num):
+                                self.seq_num = self.seq_num + 1
+                                self.byte_buffer = self.byte_buffer[length:]  
+                                return
+                            else:
+                                break
+                                # DO nothing wait for timeout
+                                # self.network.udt_send(p.get_byte_S())
+            self.network.udt_send(p.get_byte_S())
 
     def rdt_3_0_receive(self):
         #create byte string to hold incomming packets
@@ -138,21 +125,24 @@ class RDT:
             else:
                 p = Packet.from_byte_S(self.byte_buffer[0:length])
                 #check if packet is the same as the sequence number we are expecting
-                if (p.seq_num == self.seq_num_rcv):
+                if (p.seq_num <= self.seq_num_rcv):
                     ret_S = p.msg_S if (ret_S is None) else ret_S + p.msg_S
                     self.seq_num_rcv = self.seq_num_rcv + 1
                     ack = Packet(p.seq_num, 'ACK')
                     self.network.udt_send(ack.get_byte_S())
                     #Now it is time to listen for .1 seconds for the next packet from sender
                     #if nothing is received in .1 sec, we expire and assume the ACK was received by the sender.
-                    end_time = time.time() + .1
+                    end_time = time.time() + .2
                     bb2 = ''
                     while(time.time() < end_time):
                         was_duplicate = False
                         bytes2 = self.network.udt_receive()
                         bb2 += bytes2
                         #restart loop if cannot extract length field
-                        if (len(bb2) < Packet.length_S_length):
+                        try:
+                            if (len(bb2) < Packet.length_S_length):
+                                continue
+                        except ValueError:
                             continue
                         length = int(bb2[:Packet.length_S_length])
                         #restart loop if packet is not "length" long
@@ -164,21 +154,25 @@ class RDT:
                             self.network.udt_send(nack.get_byte_S())
                             bb2 = ''
                             if(was_duplicate):
-                                end_time = end_time + .1
+                                end_time = end_time + .2
                             continue
                         else:
                             p2 = Packet.from_byte_S(bb2[0:length])
                             #If we received the same packet we just ACKed for
-                            if (p2.seq_num == self.seq_num_rcv-1):
+                            if (p2.seq_num <= self.seq_num_rcv-1):
                                 was_duplicate = True
-                                end_time = end_time + .1
-                                self.network.udt_send(ack.get_byte_S())
+                                end_time = end_time + .2
+                                ack1 = Packet(p2.seq_num, 'ACK')
+                                self.network.udt_send(ack1.get_byte_S())
                                 bb2 = ''
                             #If we receied the next packet (i.e. the sender moved on from our last ACK)
                             else:
                                 nack = Packet(self.seq_num_rcv, 'NACK')
                                 self.network.udt_send(nack.get_byte_S())
                                 break
+                else:
+                    nack = Packet(self.seq_num_rcv, 'NACK')
+                    self.network.udt_send(nack.get_byte_S())
                 self.byte_buffer = self.byte_buffer[length:]
 
 if __name__ == '__main__':
